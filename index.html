@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Моя музыка</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:#15111d;--s:#211b2e;--s2:#2b2440;--t:#f2ede6;--m:#9d93b3;--a:#ff4f7b;--r:14px}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:var(--bg);color:var(--t);font:15px/1.4 -apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column;overflow:hidden}
+header{padding:14px 16px 8px}
+h1{font-size:22px;font-weight:800;letter-spacing:-.5px;margin-bottom:10px}
+.sb{display:flex;gap:8px}
+input{flex:1;min-width:0;background:var(--s);border:1px solid var(--s2);color:var(--t);border-radius:var(--r);padding:11px 14px;font-size:15px;outline:none}
+input:focus{border-color:var(--a)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.go{background:var(--a);color:#fff;border-radius:var(--r);padding:0 16px;font-weight:700}
+nav{display:flex;gap:6px;padding:8px 16px}
+nav button{padding:7px 14px;border-radius:99px;background:var(--s);color:var(--m);font-weight:600;font-size:14px}
+nav button.on{background:var(--t);color:var(--bg)}
+main{flex:1;overflow-y:auto;padding:4px 12px 130px}
+.row{display:flex;align-items:center;gap:12px;padding:8px 6px;border-radius:var(--r)}
+.row.cur{background:var(--s)}
+.cov{width:50px;height:50px;border-radius:10px;background:var(--s2);object-fit:cover;flex:none}
+.inf{flex:1;min-width:0;text-align:left}
+.inf b,.inf span{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.inf span{color:var(--m);font-size:13px}
+.ic{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;color:var(--m);font-size:19px;flex:none}
+.ic.on{color:var(--a)}
+.empty{text-align:center;color:var(--m);padding:48px 24px}
+#bar{position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));background:var(--s2);border-radius:18px;padding:10px 12px 12px;display:none;box-shadow:0 8px 30px #0008}
+#bar.show{display:block}
+.top{display:flex;align-items:center;gap:10px}
+.top .cov{width:44px;height:44px}
+.ctl{display:flex;gap:2px}
+.ctl .ic{color:var(--t)}
+.ctl .pp{background:var(--a);color:#fff}
+#pr{height:4px;border-radius:4px;background:var(--s);margin-top:10px;overflow:hidden}
+#pr i{display:block;height:100%;width:0;background:var(--a)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Моя музыка</h1>
+  <div class="sb"><input id="q" type="search" placeholder="Исполнитель или песня" enterkeyhint="search"><button class="go" id="go">Найти</button></div>
+</header>
+<nav id="tabs">
+  <button data-t="search" class="on">Поиск</button>
+  <button data-t="fav">Избранное</button>
+  <button data-t="mix">Подборка</button>
+</nav>
+<main id="list"></main>
+<div id="bar">
+  <div class="top">
+    <img class="cov" id="bc" alt="">
+    <div class="inf"><b id="bt"></b><span id="ba"></span></div>
+    <div class="ctl">
+      <button class="ic" id="prev" aria-label="Назад">⏮</button>
+      <button class="ic pp" id="pp" aria-label="Играть">▶</button>
+      <button class="ic" id="next" aria-label="Дальше">⏭</button>
+    </div>
+  </div>
+  <div id="pr"><i></i></div>
+</div>
+<audio id="au"></audio>
+<script>
+const tg=window.Telegram&&Telegram.WebApp;
+if(tg){tg.ready();tg.expand();try{tg.setHeaderColor('#15111d');tg.setBackgroundColor('#15111d')}catch(e){}}
+const $=s=>document.querySelector(s),au=$('#au');
+const load=k=>{try{return JSON.parse(localStorage.getItem(k))||[]}catch(e){return[]}};
+const save=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}};
+let S={tab:'search',res:[],fav:load('fav'),mix:load('mix'),queue:[],i:-1,msg:'Введи название — найду песню и включу фрагмент.'};
+const has=(a,t)=>a.some(x=>x.id===t.id);
+const toggle=(k,t)=>{S[k]=has(S[k],t)?S[k].filter(x=>x.id!==t.id):[...S[k],t];save(k,S[k]);if(tg&&tg.HapticFeedback)tg.HapticFeedback.selectionChanged();render()};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function items(){return S.tab==='search'?S.res:S[S.tab]}
+function render(){
+  const L=items(),cur=S.queue[S.i];
+  $('#list').innerHTML=L.length?L.map((t,n)=>`<div class="row${cur&&cur.id===t.id?' cur':''}">
+    <button class="row" style="flex:1;min-width:0;padding:0" data-p="${n}"><img class="cov" src="${esc(t.cover)}" alt=""><div class="inf"><b>${esc(t.title)}</b><span>${esc(t.artist)}</span></div></button>
+    <button class="ic${has(S.fav,t)?' on':''}" data-f="${n}" aria-label="В избранное">${has(S.fav,t)?'♥':'♡'}</button>
+    <button class="ic${has(S.mix,t)?' on':''}" data-m="${n}" aria-label="В подборку">${has(S.mix,t)?'✓':'+'}</button></div>`).join('')
+    :`<div class="empty">${S.tab==='search'?esc(S.msg):S.tab==='fav'?'Здесь будут песни с ♥':'Добавляй песни кнопкой +, и они соберутся в твою подборку'}</div>`;
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===S.tab));
+}
+async function search(){
+  const q=$('#q').value.trim();if(!q)return;
+  S.tab='search';S.res=[];S.msg='Ищу…';render();
+  try{
+    const A='https://api.audius.co/v1',app='&app_name=my_tg_player';
+    const r=await fetch(A+'/tracks/search?limit=30&query='+encodeURIComponent(q)+app);
+    const d=await r.json();
+    S.res=(d.data||[]).filter(x=>x.is_streamable!==false).map(x=>({id:x.id,title:x.title,artist:x.user.name,cover:(x.artwork&&(x.artwork['150x150']||x.artwork['480x480']))||'',url:A+'/tracks/'+x.id+'/stream?'+app.slice(1)}));
+    S.msg='Ничего не нашлось. Попробуй другое название.';
+  }catch(e){S.msg='Не удалось загрузить. Проверь интернет и повтори поиск.'}
+  render();
+}
+function play(n){
+  S.queue=items().slice();S.i=n;const t=S.queue[n];
+  au.src=t.url;au.play().catch(()=>{});
+  $('#bar').classList.add('show');$('#bc').src=t.cover;$('#bt').textContent=t.title;$('#ba').textContent=t.artist;render();
+}
+function step(d){if(!S.queue.length)return;const n=(S.i+d+S.queue.length)%S.queue.length;S.i=n;const t=S.queue[n];au.src=t.url;au.play().catch(()=>{});$('#bc').src=t.cover;$('#bt').textContent=t.title;$('#ba').textContent=t.artist;render()}
+$('#list').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;const L=items();
+  if(b.dataset.p!=null)play(+b.dataset.p);
+  else if(b.dataset.f!=null)toggle('fav',L[+b.dataset.f]);
+  else if(b.dataset.m!=null)toggle('mix',L[+b.dataset.m]);
+});
+$('#tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(b){S.tab=b.dataset.t;render()}});
+$('#go').onclick=search;
+$('#q').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
+$('#pp').onclick=()=>au.paused?au.play():au.pause();
+$('#prev').onclick=()=>step(-1);$('#next').onclick=()=>step(1);
+au.onplay=()=>$('#pp').textContent='⏸';au.onpause=()=>$('#pp').textContent='▶';
+au.onended=()=>step(1);
+au.ontimeupdate=()=>{$('#pr i').style.width=(au.duration?au.currentTime/au.duration*100:0)+'%'};
+$('#pr').onclick=e=>{if(au.duration){const r=e.currentTarget.getBoundingClientRect();au.currentTime=(e.clientX-r.left)/r.width*au.duration}};
+render();
+</script>
+</body>
+</html>
